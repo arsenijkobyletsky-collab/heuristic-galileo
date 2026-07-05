@@ -2,10 +2,10 @@
   "name": "My Custom Extension",
   "version": "1.0.0",
   "manifest_version": 1,
-  "icon": "https://www.owlbear.rodeo/favicon.ico",
+  "icon": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/favicon.ico",
   "action": {
     "title": "My Extension",
-    "popover": "index.html",
-    "icon": "https://www.owlbear.rodeo/favicon.ico"
+    "popover": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/index.html",
+    "icon": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/favicon.ico"
   }
 }
