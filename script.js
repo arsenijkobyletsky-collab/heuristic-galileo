@@ -22,13 +22,9 @@ OBR.onReady(() => {
             contentGm.classList.add("active");
             contentPlayers.classList.remove("active");
         });
-    }
+ } // Это строка 25 (закрывает блок переключения вкладок if)
 
-    // Проверяем роль пользователя (ГМ или Игрок)
-    OBR.player.getRole().then((role) => {
-        if (role === "GM") {
-            // Показываем кнопку настроек для ГМ
-            if (tabGm) tabGm.style.display = "block";
-        }
-    });
-});
+    if (tabGm) {
+        tabGm.style.display = "block";
+    }
+}); // Самый финал файла
