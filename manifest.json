@@ -1,0 +1,10 @@
+{
+  "name": "My Custom Extension",
+  "version": "1.0.0",
+  "manifest_version": 1,
+  "icon": "https://www.owlbear.rodeo/favicon.ico",
+  "action": {
+    "background_color": "#2f3136",
+    "popover": "index.html"
+  }
+}
