@@ -5,6 +5,7 @@
   "icon": "https://www.owlbear.rodeo/favicon.ico",
   "action": {
     "title": "My Extension",
-    "popover": "index.html"
+    "popover": "index.html",
+    "icon": "https://www.owlbear.rodeo/favicon.ico"
   }
 }
