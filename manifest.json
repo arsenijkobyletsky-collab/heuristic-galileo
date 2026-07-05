@@ -6,6 +6,7 @@
   "action": {
     "title": "My Extension",
     "background_color": "#2f3136",
-    "popover": "index.html"
+    "popover": "index.html",
+    "icon": "https://www.owlbear.rodeo/favicon.ico"
   }
 }
