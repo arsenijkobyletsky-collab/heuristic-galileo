@@ -3,10 +3,13 @@
   "version": "1.0.0",
   "manifest_version": 1,
   "icon": "https://www.owlbear.rodeo/favicon.ico",
+  "permissions": [],
   "action": {
     "title": "My Extension",
     "background_color": "#2f3136",
     "popover": "index.html",
-    "icon": "https://www.owlbear.rodeo/favicon.ico"
+    "icon": "https://www.owlbear.rodeo/favicon.ico",
+    "width": 400,
+    "height": 600
   }
 }
