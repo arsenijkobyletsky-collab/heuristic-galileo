@@ -1,0 +1,675 @@
+const ID = "com.zombie.fractions.v2";
+let currentRole = "PLAYER";
+
+OBR.onReady(async () => {
+  currentRole = await OBR.player.getRole();
+  if (currentRole === "GM") {
+    document.getElementById("tab-gm").style.display = "block";
+  }
+
+  setupTabs();
+  await loadPlayersList(); // Подгружаем реальных игроков в форму
+
+  // Следим за изменениями в комнате
+  OBR.room.onMetadataChange((metadata) => {
+    const data = metadata[ID] || { list: [] };
+    checkNewFactionNotifications(data.list);
+    renderFractions(data.list);
+  });
+
+  // Первая загрузка данных
+  const initialMetadata = await OBR.room.getMetadata();
+  const initialData = initialMetadata[ID] || { list: [] };
+  // Запоминаем текущий состав, чтобы не спамить старыми уведомлениями
+  localStorage.setItem('old_fractions', JSON.stringify(initialData.list));
+  renderFractions(initialData.list);
+
+  // Кнопка Сохранить (И для Создания, и для Редактирования)
+  document.getElementById("save-fac-btn").addEventListener("click", handleSaveFaction);
+  document.getElementById("cancel-edit-btn").addEventListener("click", resetForm);
+});
+
+// Загрузка живых игроков из Owlbear Rodeo в выпадающий список
+async function loadPlayersList() {
+  const select = document.getElementById("fac-players");
+  if (!select) return;
+  select.innerHTML = "";
+
+  const ownName = await OBR.player.getName();
+  const roomPlayers = await OBR.party.getPlayers();
+
+  // Добавляем себя
+  const optSelf = document.createElement("option");
+  optSelf.value = ownName;
+  optSelf.textContent = ownName + " (Вы)";
+  select.appendChild(optSelf);
+
+  // Добавляем остальных участников за столом
+  roomPlayers.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    select.appendChild(opt);
+  });
+}
+
+// Рендеринг фракций на экран
+function renderFractions(list) {
+  const listContainer = document.getElementById("fractions-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  if (list.length === 0) {
+    listContainer.innerHTML = '<p class="empty-msg">Секретные архивы пусты. Все фракции уничтожены...</p>';
+    return;
+  }
+
+  list.forEach(fac => {
+    const card = document.createElement("div");
+    card.className = "fraction-card";
+    card.style.borderLeft = 6px solid ${fac.color || '#8b0000'};
+    
+    const playersText = fac.players && fac.players.length > 0 
+      ? 👥 Состав: ${fac.players.join(", ")} 
+      : "👥 Состав: пустует";
+
+    card.innerHTML = 
+      <div class="fraction-header">
+        <span class="fraction-icon">${fac.icon || '👥'}</span>
+        <div>
+          <h4 class="fraction-title">${fac.name}</h4>
+          <div style="font-size:12px; color: ${fac.color}">Фракция</div>
+        </div>
+        <span class="fraction-count">Людей: ${fac.count || 0}</span>
+      </div>
+      <div class="fraction-players">${playersText}</div>
+    ;
+
+    // Если смотрит ГМ — добавляем кнопки Редактировать и Удалить (как в макете)
+    if (currentRole === "GM") {
+      const actions = document.createElement("div");
+      actions.className = "gm-actions";
+      
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "Редактировать";
+      editBtn.onclick = () => startEdit(fac);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "Удалить";
+      deleteBtn.onclick = () => deleteFaction(fac.id);
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      card.appendChild(actions);
+    }
+
+    listContainer.appendChild(card);
+  });
+}
+
+// Проверка: попал ли текущий игрок в новую фракцию, чтобы выкинуть Поздравление!
+async function checkNewFactionNotifications(newList) {
+  const myName = await OBR.player.getName();
+  const oldListRaw = localStorage.getItem('old_fractions');
+  const oldList = oldListRaw ? JSON.parse(oldListRaw) : [];
+[05.07.2026 17:54] ДЕБИЛЫЧ: newList.forEach(newFac => {
+    // Ищем эту же фракцию в старом списке
+    const oldFac = oldList.find(f => f.id === newFac.id);
+    const userInNew = newFac.players ? newFac.players.includes(myName) : false;
+    const userInOld = oldFac && oldFac.players ? oldFac.players.includes(myName) : false;
+
+    // Если раньше игрока не было, а теперь он появился в списке фракции
+    if (userInNew && !userInOld) {
+      OBR.notification.show(🎉 Поздравляем в фракции "${newFac.name}"!, "SUCCESS");
+    }
+  });
+
+  localStorage.setItem('old_fractions', JSON.stringify(newList));
+}
+
+// Логика Создания / Редактирования фракции
+async function handleSaveFaction() {
+  const id = document.getElementById("fac-id").value;
+  const name = document.getElementById("fac-name").value.trim();
+  const icon = document.getElementById("fac-icon").value.trim() || "👥";
+  const color = document.getElementById("fac-color").value;
+  const count = document.getElementById("fac-count").value.trim() || "0";
+  
+  // Собираем массив выбранных игроков из селекта
+  const select = document.getElementById("fac-players");
+  const selectedPlayers = Array.from(select.selectedOptions).map(opt => opt.value);
+
+  if (!name) return alert("Пожалуйста, введите название фракции!");
+
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+
+  if (id) {
+    // Редактируем существующую
+    const index = currentData.list.findIndex(f => f.id === id);
+    if (index !== -1) {
+      currentData.list[index] = { id, name, icon, color, count, players: selectedPlayers };
+    }
+  } else {
+    // Создаем новую
+    const newFaction = { id: Date.now().toString(), name, icon, color, count, players: selectedPlayers };
+    currentData.list.push(newFaction);
+  }
+
+  await OBR.room.setMetadata({ [ID]: currentData });
+  resetForm();
+  
+  // Возвращаем ГМ на вкладку "Все фракции" после сохранения
+  document.getElementById("tab-players").click();
+}
+
+// Заполнение формы данными для редактирования
+function startEdit(fac) {
+  document.getElementById("tab-gm").click(); // Переключаем вкладку на форму
+  document.getElementById("gm-form-title").textContent = "Редактировать фракцию:";
+  document.getElementById("fac-id").value = fac.id;
+  document.getElementById("fac-name").value = fac.name;
+  document.getElementById("fac-icon").value = fac.icon;
+  document.getElementById("fac-color").value = fac.color || "#8b0000";
+  document.getElementById("fac-count").value = fac.count;
+  document.getElementById("cancel-edit-btn").style.display = "block";
+
+  // Восстанавливаем выбранных игроков в селекте
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => {
+    opt.selected = fac.players ? fac.players.includes(opt.value) : false;
+  });
+}
+
+// Сброс формы в стандартное состояние
+function resetForm() {
+  document.getElementById("gm-form-title").textContent = "Добавить фракцию:";
+  document.getElementById("fac-id").value = "";
+  document.getElementById("fac-name").value = "";
+  document.getElementById("fac-icon").value = "";
+  document.getElementById("fac-color").value = "#8b0000";
+  document.getElementById("fac-count").value = "";
+  document.getElementById("cancel-edit-btn").style.display = "none";
+  
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => opt.selected = false);
+}
+
+// Удаление фракции
+async function deleteFaction(id) {
+  if (!confirm("Вы уверены, что хотите уничтожить эту фракцию?")) return;
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+  currentData.list = currentData.list.filter(f => f.id !== id);
+  await OBR.room.setMetadata({ [ID]: currentData });
+}
+
+function setupTabs() {
+  const btnPlayers = document.getElementById("tab-players");
+  const btnGm = document.getElementById("tab-gm");
+  const contentPlayers = document.getElementById("content-players");
+  const contentGM = document.getElementById("content-gm");
+[05.07.2026 17:54] ДЕБИЛЫЧ: btnPlayers.addEventListener("click", () => {
+    btnPlayers.classList.add("active"); btnGm.classList.remove("active");
+    contentPlayers.classList.add("active"); contentGM.classList.remove("active");
+    loadPlayersList(); // Освежаем список игроков при переключениях
+  });
+
+  btnGm.addEventListener("click", () => {
+    btnGm.classList.add("active"); btnPlayers.classList.remove("active");
+    contentGM.classList.add("active"); contentPlayers.classList.remove("active");
+    loadPlayersList();
+  });
+}
+[05.07.2026 17:54] ДЕБИЛЫЧ: const ID = "com.zombie.fractions.v2";
+let currentRole = "PLAYER";
+
+OBR.onReady(async () => {
+  currentRole = await OBR.player.getRole();
+  if (currentRole === "GM") {
+    document.getElementById("tab-gm").style.display = "block";
+  }
+
+  setupTabs();
+  await loadPlayersList(); // Подгружаем реальных игроков в форму
+
+  // Следим за изменениями в комнате
+  OBR.room.onMetadataChange((metadata) => {
+    const data = metadata[ID] || { list: [] };
+    checkNewFactionNotifications(data.list);
+    renderFractions(data.list);
+  });
+
+  // Первая загрузка данных
+  const initialMetadata = await OBR.room.getMetadata();
+  const initialData = initialMetadata[ID] || { list: [] };
+  // Запоминаем текущий состав, чтобы не спамить старыми уведомлениями
+  localStorage.setItem('old_fractions', JSON.stringify(initialData.list));
+  renderFractions(initialData.list);
+
+  // Кнопка Сохранить (И для Создания, и для Редактирования)
+  document.getElementById("save-fac-btn").addEventListener("click", handleSaveFaction);
+  document.getElementById("cancel-edit-btn").addEventListener("click", resetForm);
+});
+
+// Загрузка живых игроков из Owlbear Rodeo в выпадающий список
+async function loadPlayersList() {
+  const select = document.getElementById("fac-players");
+  if (!select) return;
+  select.innerHTML = "";
+
+  const ownName = await OBR.player.getName();
+  const roomPlayers = await OBR.party.getPlayers();
+
+  // Добавляем себя
+  const optSelf = document.createElement("option");
+  optSelf.value = ownName;
+  optSelf.textContent = ownName + " (Вы)";
+  select.appendChild(optSelf);
+
+  // Добавляем остальных участников за столом
+  roomPlayers.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    select.appendChild(opt);
+  });
+}
+
+// Рендеринг фракций на экран
+function renderFractions(list) {
+  const listContainer = document.getElementById("fractions-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  if (list.length === 0) {
+    listContainer.innerHTML = '<p class="empty-msg">Секретные архивы пусты. Все фракции уничтожены...</p>';
+    return;
+  }
+
+  list.forEach(fac => {
+    const card = document.createElement("div");
+    card.className = "fraction-card";
+    card.style.borderLeft = 6px solid ${fac.color || '#8b0000'};
+    
+    const playersText = fac.players && fac.players.length > 0 
+      ? 👥 Состав: ${fac.players.join(", ")} 
+      : "👥 Состав: пустует";
+
+    card.innerHTML = 
+      <div class="fraction-header">
+        <span class="fraction-icon">${fac.icon || '👥'}</span>
+        <div>
+          <h4 class="fraction-title">${fac.name}</h4>
+          <div style="font-size:12px; color: ${fac.color}">Фракция</div>
+        </div>
+        <span class="fraction-count">Людей: ${fac.count || 0}</span>
+      </div>
+      <div class="fraction-players">${playersText}</div>
+    ;
+
+    // Если смотрит ГМ — добавляем кнопки Редактировать и Удалить (как в макете)
+    if (currentRole === "GM") {
+      const actions = document.createElement("div");
+      actions.className = "gm-actions";
+      
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "Редактировать";
+      editBtn.onclick = () => startEdit(fac);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "Удалить";
+      deleteBtn.onclick = () => deleteFaction(fac.id);
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      card.appendChild(actions);
+    }
+
+    listContainer.appendChild(card);
+  });
+}
+
+// Проверка: попал ли текущий игрок в новую фракцию, чтобы выкинуть Поздравление!
+async function checkNewFactionNotifications(newList) {
+  const myName = await OBR.player.getName();
+  const oldListRaw = localStorage.getItem('old_fractions');
+  const oldList = oldListRaw ? JSON.parse(oldListRaw) : [];
+[05.07.2026 17:54] ДЕБИЛЫЧ: newList.forEach(newFac => {
+    // Ищем эту же фракцию в старом списке
+    const oldFac = oldList.find(f => f.id === newFac.id);
+    const userInNew = newFac.players ? newFac.players.includes(myName) : false;
+    const userInOld = oldFac && oldFac.players ? oldFac.players.includes(myName) : false;
+
+    // Если раньше игрока не было, а теперь он появился в списке фракции
+    if (userInNew && !userInOld) {
+      OBR.notification.show(🎉 Поздравляем в фракции "${newFac.name}"!, "SUCCESS");
+    }
+  });
+
+  localStorage.setItem('old_fractions', JSON.stringify(newList));
+}
+
+// Логика Создания / Редактирования фракции
+async function handleSaveFaction() {
+  const id = document.getElementById("fac-id").value;
+  const name = document.getElementById("fac-name").value.trim();
+  const icon = document.getElementById("fac-icon").value.trim() || "👥";
+  const color = document.getElementById("fac-color").value;
+  const count = document.getElementById("fac-count").value.trim() || "0";
+  
+  // Собираем массив выбранных игроков из селекта
+  const select = document.getElementById("fac-players");
+  const selectedPlayers = Array.from(select.selectedOptions).map(opt => opt.value);
+
+  if (!name) return alert("Пожалуйста, введите название фракции!");
+
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+
+  if (id) {
+    // Редактируем существующую
+    const index = currentData.list.findIndex(f => f.id === id);
+    if (index !== -1) {
+      currentData.list[index] = { id, name, icon, color, count, players: selectedPlayers };
+    }
+  } else {
+    // Создаем новую
+    const newFaction = { id: Date.now().toString(), name, icon, color, count, players: selectedPlayers };
+    currentData.list.push(newFaction);
+  }
+
+  await OBR.room.setMetadata({ [ID]: currentData });
+  resetForm();
+  
+  // Возвращаем ГМ на вкладку "Все фракции" после сохранения
+  document.getElementById("tab-players").click();
+}
+
+// Заполнение формы данными для редактирования
+function startEdit(fac) {
+  document.getElementById("tab-gm").click(); // Переключаем вкладку на форму
+  document.getElementById("gm-form-title").textContent = "Редактировать фракцию:";
+  document.getElementById("fac-id").value = fac.id;
+  document.getElementById("fac-name").value = fac.name;
+  document.getElementById("fac-icon").value = fac.icon;
+  document.getElementById("fac-color").value = fac.color || "#8b0000";
+  document.getElementById("fac-count").value = fac.count;
+  document.getElementById("cancel-edit-btn").style.display = "block";
+
+  // Восстанавливаем выбранных игроков в селекте
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => {
+    opt.selected = fac.players ? fac.players.includes(opt.value) : false;
+  });
+}
+
+// Сброс формы в стандартное состояние
+function resetForm() {
+  document.getElementById("gm-form-title").textContent = "Добавить фракцию:";
+  document.getElementById("fac-id").value = "";
+  document.getElementById("fac-name").value = "";
+  document.getElementById("fac-icon").value = "";
+  document.getElementById("fac-color").value = "#8b0000";
+  document.getElementById("fac-count").value = "";
+  document.getElementById("cancel-edit-btn").style.display = "none";
+  
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => opt.selected = false);
+}
+
+// Удаление фракции
+async function deleteFaction(id) {
+  if (!confirm("Вы уверены, что хотите уничтожить эту фракцию?")) return;
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+  currentData.list = currentData.list.filter(f => f.id !== id);
+  await OBR.room.setMetadata({ [ID]: currentData });
+}
+
+function setupTabs() {
+  const btnPlayers = document.getElementById("tab-players");
+  const btnGm = document.getElementById("tab-gm");
+  const contentPlayers = document.getElementById("content-players");
+  const contentGM = document.getElementById("content-gm");
+[05.07.2026 17:54] ДЕБИЛЫЧ: btnPlayers.addEventListener("click", () => {
+    btnPlayers.classList.add("active"); btnGm.classList.remove("active");
+    contentPlayers.classList.add("active"); contentGM.classList.remove("active");
+    loadPlayersList(); // Освежаем список игроков при переключениях
+  });
+
+  btnGm.addEventListener("click", () => {
+    btnGm.classList.add("active"); btnPlayers.classList.remove("active");
+    contentGM.classList.add("active"); contentPlayers.classList.remove("active");
+    loadPlayersList();
+  });
+}
+const ID = "com.zombie.fractions.v2";
+let currentRole = "PLAYER";
+
+OBR.onReady(async () => {
+  currentRole = await OBR.player.getRole();
+  if (currentRole === "GM") {
+    document.getElementById("tab-gm").style.display = "block";
+  }
+
+  setupTabs();
+  await loadPlayersList(); // Подгружаем реальных игроков в форму
+
+  // Следим за изменениями в комнате
+  OBR.room.onMetadataChange((metadata) => {
+    const data = metadata[ID] || { list: [] };
+    checkNewFactionNotifications(data.list);
+    renderFractions(data.list);
+  });
+
+  // Первая загрузка данных
+  const initialMetadata = await OBR.room.getMetadata();
+  const initialData = initialMetadata[ID] || { list: [] };
+  // Запоминаем текущий состав, чтобы не спамить старыми уведомлениями
+  localStorage.setItem('old_fractions', JSON.stringify(initialData.list));
+  renderFractions(initialData.list);
+
+  // Кнопка Сохранить (И для Создания, и для Редактирования)
+  document.getElementById("save-fac-btn").addEventListener("click", handleSaveFaction);
+  document.getElementById("cancel-edit-btn").addEventListener("click", resetForm);
+});
+
+// Загрузка живых игроков из Owlbear Rodeo в выпадающий список
+async function loadPlayersList() {
+  const select = document.getElementById("fac-players");
+  if (!select) return;
+  select.innerHTML = "";
+
+  const ownName = await OBR.player.getName();
+  const roomPlayers = await OBR.party.getPlayers();
+
+  // Добавляем себя
+  const optSelf = document.createElement("option");
+  optSelf.value = ownName;
+  optSelf.textContent = ownName + " (Вы)";
+  select.appendChild(optSelf);
+
+  // Добавляем остальных участников за столом
+  roomPlayers.forEach(p => {
+    const opt = document.createElement("option");
+    opt.value = p.name;
+    opt.textContent = p.name;
+    select.appendChild(opt);
+  });
+}
+
+// Рендеринг фракций на экран
+function renderFractions(list) {
+  const listContainer = document.getElementById("fractions-list");
+  if (!listContainer) return;
+  listContainer.innerHTML = "";
+
+  if (list.length === 0) {
+    listContainer.innerHTML = '<p class="empty-msg">Секретные архивы пусты. Все фракции уничтожены...</p>';
+    return;
+  }
+
+  list.forEach(fac => {
+    const card = document.createElement("div");
+    card.className = "fraction-card";
+    card.style.borderLeft = 6px solid ${fac.color || '#8b0000'};
+    
+    const playersText = fac.players && fac.players.length > 0 
+      ? 👥 Состав: ${fac.players.join(", ")} 
+      : "👥 Состав: пустует";
+
+    card.innerHTML = 
+      <div class="fraction-header">
+        <span class="fraction-icon">${fac.icon || '👥'}</span>
+        <div>
+          <h4 class="fraction-title">${fac.name}</h4>
+          <div style="font-size:12px; color: ${fac.color}">Фракция</div>
+        </div>
+        <span class="fraction-count">Людей: ${fac.count || 0}</span>
+      </div>
+      <div class="fraction-players">${playersText}</div>
+    ;
+
+    // Если смотрит ГМ — добавляем кнопки Редактировать и Удалить (как в макете)
+    if (currentRole === "GM") {
+      const actions = document.createElement("div");
+      actions.className = "gm-actions";
+      
+      const editBtn = document.createElement("button");
+      editBtn.className = "edit-btn";
+      editBtn.textContent = "Редактировать";
+      editBtn.onclick = () => startEdit(fac);
+
+      const deleteBtn = document.createElement("button");
+      deleteBtn.className = "delete-btn";
+      deleteBtn.textContent = "Удалить";
+      deleteBtn.onclick = () => deleteFaction(fac.id);
+
+      actions.appendChild(editBtn);
+      actions.appendChild(deleteBtn);
+      card.appendChild(actions);
+    }
+
+    listContainer.appendChild(card);
+  });
+}
+
+// Проверка: попал ли текущий игрок в новую фракцию, чтобы выкинуть Поздравление!
+async function checkNewFactionNotifications(newList) {
+  const myName = await OBR.player.getName();
+  const oldListRaw = localStorage.getItem('old_fractions');
+  const oldList = oldListRaw ? JSON.parse(oldListRaw) : [];
+[05.07.2026 17:54] ДЕБИЛЫЧ: newList.forEach(newFac => {
+    // Ищем эту же фракцию в старом списке
+    const oldFac = oldList.find(f => f.id === newFac.id);
+    const userInNew = newFac.players ? newFac.players.includes(myName) : false;
+    const userInOld = oldFac && oldFac.players ? oldFac.players.includes(myName) : false;
+
+    // Если раньше игрока не было, а теперь он появился в списке фракции
+    if (userInNew && !userInOld) {
+      OBR.notification.show(🎉 Поздравляем в фракции "${newFac.name}"!, "SUCCESS");
+    }
+  });
+
+  localStorage.setItem('old_fractions', JSON.stringify(newList));
+}
+
+// Логика Создания / Редактирования фракции
+async function handleSaveFaction() {
+  const id = document.getElementById("fac-id").value;
+  const name = document.getElementById("fac-name").value.trim();
+  const icon = document.getElementById("fac-icon").value.trim() || "👥";
+  const color = document.getElementById("fac-color").value;
+  const count = document.getElementById("fac-count").value.trim() || "0";
+  
+  // Собираем массив выбранных игроков из селекта
+  const select = document.getElementById("fac-players");
+  const selectedPlayers = Array.from(select.selectedOptions).map(opt => opt.value);
+
+  if (!name) return alert("Пожалуйста, введите название фракции!");
+
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+
+  if (id) {
+    // Редактируем существующую
+    const index = currentData.list.findIndex(f => f.id === id);
+    if (index !== -1) {
+      currentData.list[index] = { id, name, icon, color, count, players: selectedPlayers };
+    }
+  } else {
+    // Создаем новую
+    const newFaction = { id: Date.now().toString(), name, icon, color, count, players: selectedPlayers };
+    currentData.list.push(newFaction);
+  }
+
+  await OBR.room.setMetadata({ [ID]: currentData });
+  resetForm();
+  
+  // Возвращаем ГМ на вкладку "Все фракции" после сохранения
+  document.getElementById("tab-players").click();
+}
+
+// Заполнение формы данными для редактирования
+function startEdit(fac) {
+  document.getElementById("tab-gm").click(); // Переключаем вкладку на форму
+  document.getElementById("gm-form-title").textContent = "Редактировать фракцию:";
+  document.getElementById("fac-id").value = fac.id;
+  document.getElementById("fac-name").value = fac.name;
+  document.getElementById("fac-icon").value = fac.icon;
+  document.getElementById("fac-color").value = fac.color || "#8b0000";
+  document.getElementById("fac-count").value = fac.count;
+  document.getElementById("cancel-edit-btn").style.display = "block";
+
+  // Восстанавливаем выбранных игроков в селекте
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => {
+    opt.selected = fac.players ? fac.players.includes(opt.value) : false;
+  });
+}
+
+// Сброс формы в стандартное состояние
+function resetForm() {
+  document.getElementById("gm-form-title").textContent = "Добавить фракцию:";
+  document.getElementById("fac-id").value = "";
+  document.getElementById("fac-name").value = "";
+  document.getElementById("fac-icon").value = "";
+  document.getElementById("fac-color").value = "#8b0000";
+  document.getElementById("fac-count").value = "";
+  document.getElementById("cancel-edit-btn").style.display = "none";
+  
+  const select = document.getElementById("fac-players");
+  Array.from(select.options).forEach(opt => opt.selected = false);
+}
+
+// Удаление фракции
+async function deleteFaction(id) {
+  if (!confirm("Вы уверены, что хотите уничтожить эту фракцию?")) return;
+  const currentMetadata = await OBR.room.getMetadata();
+  const currentData = currentMetadata[ID] || { list: [] };
+  currentData.list = currentData.list.filter(f => f.id !== id);
+  await OBR.room.setMetadata({ [ID]: currentData });
+}
+
+function setupTabs() {
+  const btnPlayers = document.getElementById("tab-players");
+  const btnGm = document.getElementById("tab-gm");
+  const contentPlayers = document.getElementById("content-players");
+  const contentGM = document.getElementById("content-gm");
+[05.07.2026 17:54] ДЕБИЛЫЧ: btnPlayers.addEventListener("click", () => {
+    btnPlayers.classList.add("active"); btnGm.classList.remove("active");
+    contentPlayers.classList.add("active"); contentGM.classList.remove("active");
+    loadPlayersList(); // Освежаем список игроков при переключениях
+  });
+
+  btnGm.addEventListener("click", () => {
+    btnGm.classList.add("active"); btnPlayers.classList.remove("active");
+    contentGM.classList.add("active"); contentPlayers.classList.remove("active");
+    loadPlayersList();
+  });
+}

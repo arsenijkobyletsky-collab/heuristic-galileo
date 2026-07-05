@@ -1,0 +1,155 @@
+body {
+  background-color: #121212;
+  color: #e0e0e0;
+  font-family: system-ui, -apple-system, sans-serif;
+  margin: 0;
+  padding: 15px;
+}
+h2 {
+  font-size: 20px;
+  margin-top: 0;
+  border-bottom: 1px solid #333;
+  padding-bottom: 5px;
+}
+label {
+  display: block;
+  font-weight: bold;
+  margin: 10px 0 4px 0;
+  font-size: 14px;
+}
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 20px;
+}
+.tab-btn {
+  background: #222;
+  color: #aaa;
+  border: 1px solid #444;
+  padding: 10px;
+  cursor: pointer;
+  border-radius: 6px;
+  flex: 1;
+  font-weight: bold;
+  transition: 0.2s;
+}
+.tab-btn.active {
+  background: #333;
+  color: white;
+  border-color: #555;
+  box-shadow: 0 0 5px rgba(255, 255, 255, 0.1);
+}
+.tab-content {
+  display: none;
+}
+.tab-content.active {
+  display: block;
+}
+
+/* Карточки Фракций */
+.fraction-card {
+  background: #1e1e1e;
+  border: 1px solid #333;
+  padding: 15px;
+  margin-bottom: 15px;
+  border-radius: 8px;
+  position: relative;
+}
+.fraction-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.fraction-icon {
+  font-size: 28px;
+}
+.fraction-title {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 0;
+}
+.fraction-count {
+  font-size: 13px;
+  background: rgba(0, 0, 0, 0.3);
+  padding: 4px 8px;
+  border-radius: 20px;
+  margin-left: auto;
+  font-weight: bold;
+}
+.fraction-players {
+  font-size: 14px;
+  color: #bbb;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px;
+  border-radius: 6px;
+  margin: 5px 0;
+}
+
+/* Кнопки управления для ГМ на карточках */
+.gm-actions {
+  display: flex;
+  gap: 5px;
+  margin-top: 10px;
+  justify-content: flex-end;
+}
+.edit-btn {
+  background: #ffb703;
+  color: black;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+.delete-btn {
+  background: #d90429;
+  color: white;
+  border: none;
+  padding: 5px 10px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+}
+
+/* Форма */
+.gm-panel input[type="text"],
+.gm-panel input[type="number"],
+.gm-panel select {
+  width: 100%;
+  background: #222;
+  border: 1px solid #444;
+  color: white;
+  padding: 10px;
+  border-radius: 6px;
+  box-sizing: border-box;
+}
+.gm-panel input[type="color"] {
+  width: 100%;
+  height: 40px;
+  border: 1px solid #444;
+  background: none;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.gm-panel select {
+  height: 100px;
+}
+#save-fac-btn {
+  width: 100%;
+  background: #006400;
+  color: white;
+  border: none;
+  padding: 12px;
+  font-weight: bold;
+  border-radius: 6px;
+  cursor: pointer;
+  margin-top: 15px;
+  font-size: 15px;
+}
+.empty-msg {
+  text-align: center;
+  color: #666;
+  font-style: italic;
+  margin-top: 40px;
+}
