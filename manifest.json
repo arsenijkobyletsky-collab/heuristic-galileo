@@ -6,6 +6,8 @@
   "action": {
     "title": "My Extension",
     "popover": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/index.html",
-    "icon": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/favicon.ico"
+    "icon": "https://arsenijkobyletsky-collab.github.io/heuristic-galileo/favicon.ico",
+    "width": 400,
+    "height": 600
   }
 }
