@@ -1,3 +1,9 @@
+cat > /mnt/user-data/outputs/script.js << 'SCRIPT_EOF'
+// Подключаем SDK Owlbear Rodeo как ES-модуль (он написан на import,
+// поэтому обычный <script src="..."> для него не работает).
+// Из-за этого index.html тоже нужно поменять — см. инструкцию.
+import OBR from "https://unpkg.com/@owlbear-rodeo/sdk";
+
 // ID твоего расширения — используется как префикс для ключа в метаданных,
 // чтобы не конфликтовать с другими расширениями в той же комнате.
 const EXT_ID = "com.heuristicgalileo.factions";
@@ -114,6 +120,7 @@ function resetForm() {
   document.getElementById("gm-form-title").textContent = "Добавить фракцию";
   document.getElementById("cancel-edit-btn").style.display = "none";
 }
+
 function editFaction(id) {
   const faction = factions.find((f) => f.id === id);
   if (!faction) return;
@@ -186,3 +193,5 @@ function escapeHtml(str) {
   div.textContent = str ?? "";
   return div.innerHTML;
 }
+SCRIPT_EOF
+echo "done"
