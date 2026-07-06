@@ -1,4 +1,3 @@
-cat > /mnt/user-data/outputs/script.js << 'SCRIPT_EOF'
 // Подключаем SDK Owlbear Rodeo как ES-модуль (он написан на import,
 // поэтому обычный <script src="..."> для него не работает).
 // Из-за этого index.html тоже нужно поменять — см. инструкцию.
@@ -193,5 +192,3 @@ function escapeHtml(str) {
   div.textContent = str ?? "";
   return div.innerHTML;
 }
-SCRIPT_EOF
-echo "done"
